@@ -34,7 +34,12 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     
     # Extract title from first # heading if it exists
     title_match = match(r"^#\s+(.+)$"m, md_content)
-    title = title_match !== nothing ? title_match.captures[1] : "Untitled"
+    if title_match !== nothing
+        # Process the title to handle inline code and special characters
+        title = escape_latex_text_inline(title_match.captures[1])
+    else
+        title = "Untitled"
+    end
     
     # Remove the title line from content if found
     if title_match !== nothing
@@ -133,13 +138,17 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
             
             # Convert markdown headers to LaTeX sections
             if (m = match(r"^#####\s+(.+)$", line)) !== nothing
-                write(latex_content, "\\paragraph{$(strip(m.captures[1]))}\n")
+                header_text = escape_latex_text_inline(strip(m.captures[1]))
+                write(latex_content, "\\paragraph{$(header_text)}\n")
             elseif (m = match(r"^####\s+(.+)$", line)) !== nothing
-                write(latex_content, "\\subsubsection{$(strip(m.captures[1]))}\n")
+                header_text = escape_latex_text_inline(strip(m.captures[1]))
+                write(latex_content, "\\subsubsection{$(header_text)}\n")
             elseif (m = match(r"^###\s+(.+)$", line)) !== nothing
-                write(latex_content, "\\subsection{$(strip(m.captures[1]))}\n")
+                header_text = escape_latex_text_inline(strip(m.captures[1]))
+                write(latex_content, "\\subsection{$(header_text)}\n")
             elseif (m = match(r"^##\s+(.+)$", line)) !== nothing
-                write(latex_content, "\\section{$(strip(m.captures[1]))}\n")
+                header_text = escape_latex_text_inline(strip(m.captures[1]))
+                write(latex_content, "\\section{$(header_text)}\n")
             elseif !isempty(strip(line))
                 # Regular text - escape LaTeX special characters if needed
                 # Also convert @references to LaTeX \ref or \eqref
@@ -238,8 +247,15 @@ end
 Escape special LaTeX characters in regular text, handling only inline math.
 This is for single lines of text.
 """
+
+"""
+    escape_latex_text_inline(str::String)
+
+Escape special LaTeX characters in regular text, handling inline math and inline code.
+This is for single lines of text.
+"""
 function escape_latex_text_inline(str::AbstractString)
-    # Protect inline math expressions
+    # First, protect inline math expressions
     math_expressions = String[]
     protected_str = str
     
@@ -250,7 +266,26 @@ function escape_latex_text_inline(str::AbstractString)
         protected_str = replace(protected_str, m.match => "<<<MATH$(length(math_expressions))>>>", count=1)
     end
     
-    # Now escape special characters in the non-math text
+    # Find and protect inline code `...`
+    code_expressions = String[]
+    code_pattern = r"`([^`]+)`"
+    for m in eachmatch(code_pattern, protected_str)
+        code_content = m.captures[1]
+        # Escape special LaTeX characters within the code content
+        escaped_code = code_content
+        # Only escape the most critical LaTeX special characters for texttt
+        escaped_code = replace(escaped_code, "\\" => "\\textbackslash{}")
+        escaped_code = replace(escaped_code, "{" => "\\{")
+        escaped_code = replace(escaped_code, "}" => "\\}")
+        escaped_code = replace(escaped_code, "^" => "\\textasciicircum{}")
+        escaped_code = replace(escaped_code, "~" => "\\textasciitilde{}")
+        # Convert to \texttt{} format
+        latex_code = "\\texttt{" * escaped_code * "}"
+        push!(code_expressions, latex_code)
+        protected_str = replace(protected_str, m.match => "<<<CODE$(length(code_expressions))>>>", count=1)
+    end
+    
+    # Now escape special characters in the non-math, non-code text
     replacements = [
         "\\" => "\\textbackslash{}",
         "&" => "\\&",
@@ -272,6 +307,11 @@ function escape_latex_text_inline(str::AbstractString)
     # Restore math expressions
     for (i, math_expr) in enumerate(math_expressions)
         result = replace(result, "<<<MATH$(i)>>>" => math_expr)
+    end
+    
+    # Restore code expressions (already converted to \texttt{})
+    for (i, code_expr) in enumerate(code_expressions)
+        result = replace(result, "<<<CODE$(i)>>>" => code_expr)
     end
     
     return result

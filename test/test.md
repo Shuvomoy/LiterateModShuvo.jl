@@ -1,4 +1,4 @@
-# Title: Aug 31, 2025
+# Title: `sample code`
 Some text 
 
 ````julia
@@ -19,13 +19,13 @@ $$
 
 
 As shown in Equation, Euler's identity is a fundamental mathematical relationship.
-## REGNAME
+## Einstein's Equation `E=m c^2`
 This is markdown. Consider: 
 $$
 E = mc^2
 $$ {#eq-einstein}
 
-Where Equation @eq-einstein demonstrates the relationship between energy, mass, and the speed of light.
+Where Equation @eq-einstein demonstrates the relationship between energy `e`, mass `m`, and the speed of light `c`.
 
 ````julia
 m = 1
@@ -38,10 +38,10 @@ E = m*c^2
 Another multiline equation is as follows: 
 
 $$
-\begin{align}
+\begin{aligned}
   Ax &= b \\
   x &\ge 0
-\end{align}
+\end{aligned}
 $$ {#eq-Ax-eq-b}
 Here, Equation @eq-Ax-eq-b represents a system of linear equations with non-negativity constraints.
 

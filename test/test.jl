@@ -1,5 +1,5 @@
 #=
-# Title: Aug 31, 2025
+# Title: `sample code`
 Some text 
 =#
 x = 1
@@ -23,14 +23,14 @@ As shown in Equation, Euler's identity is a fundamental mathematical relationshi
 =#
 
 
-#region REGNAME
+#region Einstein's Equation `E=m c^2`
 #=
 This is markdown. Consider: 
 $$
 E = mc^2
 $$ {#eq-einstein}
 
-Where Equation @eq-einstein demonstrates the relationship between energy, mass, and the speed of light.
+Where Equation @eq-einstein demonstrates the relationship between energy `e`, mass `m`, and the speed of light `c`.
 
 =#
 #endregion
