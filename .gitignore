@@ -5,3 +5,5 @@ LiterateModShuvo.jl.code-workspace
 *.aux
 *.pygtex
 CLAUDE.md
+/.github
+/.vscode
