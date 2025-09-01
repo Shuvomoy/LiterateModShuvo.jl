@@ -1,0 +1,37 @@
+\documentclass{article}
+\usepackage{minted}
+\usepackage{xcolor} % Required for bgcolor in minted
+\definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
+\usepackage{fontspec} %fontspec is required for code font
+\setmonofont{JuliaMono}[Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-RegularItalic, BoldItalicFont=*-BoldItalic, Contextuals=Alternate, Scale = 0.8]
+
+\title{Title: Aug 31, 2025}
+
+\begin{document}
+\maketitle
+
+
+Some text 
+
+\begin{minted}[frame=lines,framerule=2pt,mathescape=true,bgcolor=lightgray,breaklines]{julia}
+x = 1
+# a comment
+y = x+1
+## this is another comment
+\end{minted}
+
+
+\$\$
+\textbackslash\{\}begin\{aligned\}
+  a \&= b + c \textbackslash\{\}\textbackslash\{\}
+  \& \textbackslash\{\}quad + d + e \textbackslash\{\}\textbackslash\{\}
+  f \&= g - h
+\textbackslash\{\}end\{aligned\}
+\$\$ \{\#eq-mult-line\} 
+
+As shown in Equation @\#eq-multline, Euler's identity is a fundamental mathematical relationship.
+\section{REGNAME}
+This is markdown. This is an equation $E=mc^2$.
+
+
+\end{document}

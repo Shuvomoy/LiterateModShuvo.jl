@@ -47,6 +47,7 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     # Write preamble
     write(latex_content, """
     \\documentclass{article}
+    \\usepackage{amsmath}
     \\usepackage{minted}
     \\usepackage{xcolor} % Required for bgcolor in minted
     \\definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
@@ -63,14 +64,63 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     # Process the markdown content line by line
     lines = split(md_content, '\n')
     in_code_block = false
+    in_display_math = false
     code_lang = ""
     code_buffer = IOBuffer()
+    math_buffer = IOBuffer()
     i = 1
     
     while i <= length(lines)
         line = lines[i]
         
-        if !in_code_block
+        if !in_code_block && !in_display_math
+            # Check for display math start - handle $$ on its own line or at start of line
+            if strip(line) == "\$\$" || occursin(r"^\s*\$\$", line)
+                in_display_math = true
+                math_buffer = IOBuffer()
+                # Check if it's a single-line display math
+                if occursin(r"^\s*\$\$.*\$\$", line)
+                    # Single line display math - extract content between $$
+                    math_content = replace(line, r"^\s*\$\$(.*?)\$\$.*$" => s"\1")
+                    # Check for label after $$
+                    label_match = match(r"\$\$\s*\{#([^}]+)\}", line)
+                    if label_match !== nothing
+                        label = label_match.captures[1]
+                        # Validate that label starts with "eq-"
+                        if !startswith(label, "eq-")
+                            error("""
+                            Invalid equation label format: {#$label}
+                            # Validate that label starts with "eq-"
+                            For compatibility, equation labels must always start with 'eq-'.
+                            Please use the format: {#eq-SomeLabel}
+                            And refer to it using: @eq-SomeLabel
+                            
+                            Found in line: $line
+                            """)
+                        end                    
+                        # Remove "eq-" prefix if present for LaTeX label
+                        label = replace(label, r"^eq-" => "")
+                        write(latex_content, "\\begin{equation}\\label{$(label)}\n")
+                        write(latex_content, strip(math_content), "\n")
+                        write(latex_content, "\\end{equation}\n")
+                    else
+                        # No label - use equation* for unnumbered equation
+                        write(latex_content, "\\begin{equation*}\n")
+                        write(latex_content, strip(math_content), "\n")
+                        write(latex_content, "\\end{equation*}\n")
+                    end
+                    in_display_math = false
+                else
+                    # Multi-line display math starts
+                    remaining = replace(line, r"^\s*\$\$" => "")
+                    if !isempty(strip(remaining))
+                        write(math_buffer, strip(remaining), "\n")
+                    end
+                end
+                i += 1
+                continue
+            end
+            
             # Check for code block start with 3 or 4 backticks
             code_match = match(r"^```+(\w*)", line)
             if code_match !== nothing
@@ -92,13 +142,58 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
                 write(latex_content, "\\section{$(strip(m.captures[1]))}\n")
             elseif !isempty(strip(line))
                 # Regular text - escape LaTeX special characters if needed
-                escaped_line = escape_latex_text(line)
+                # Also convert @references to LaTeX \ref or \eqref
+                escaped_line = escape_latex_text_inline(line)
+                # Convert @eq-einstein style references to \eqref{einstein}
+                escaped_line = replace(escaped_line, r"@eq-([a-zA-Z0-9_-]+)" => s"\\eqref{\1}")
                 write(latex_content, escaped_line, "\n")
             else
                 # Empty line
                 write(latex_content, "\n")
             end
-        else
+        elseif in_display_math
+            # Check for display math end - handle $$ anywhere in the line
+            if occursin(r"\$\$", line)
+                # Get content before $$
+                before_end = replace(line, r"\$\$.*$" => "")
+                if !isempty(strip(before_end))
+                    write(math_buffer, strip(before_end), "\n")
+                end
+                # Check for label after $$
+                label_match = match(r"\$\$\s*\{#([^}]+)\}", line)
+                # Write the equation environment
+                math_content = String(take!(math_buffer))
+                if label_match !== nothing
+                    label = label_match.captures[1]
+                    # Validate that label starts with "eq-"
+                    if !startswith(label, "eq-")
+                        error("""
+                        Invalid equation label format: {#$label}
+                        
+                        For compatibility, equation labels must always start with 'eq-'.
+                        Please use the format: {#eq-SomeLabel}
+                        And refer to it using: @eq-SomeLabel
+                        
+                        Found in line: $line
+                        """)
+                    end                    
+                    # Convert eq-einstein to einstein for LaTeX label
+                    label = replace(label, r"^eq-" => "")
+                    write(latex_content, "\\begin{equation}\\label{$(label)}\n")
+                    write(latex_content, strip(math_content), "\n")
+                    write(latex_content, "\\end{equation}\n")
+                else
+                    # No label - use equation* for unnumbered equation
+                    write(latex_content, "\\begin{equation*}\n")
+                    write(latex_content, strip(math_content), "\n")
+                    write(latex_content, "\\end{equation*}\n")
+                end
+                in_display_math = false
+            else
+                # Accumulate math content
+                write(math_buffer, line, "\n")
+            end
+        elseif in_code_block
             # Check for code block end
             if occursin(r"^```+$", line)
                 # Write the minted environment
@@ -138,13 +233,13 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
 end
 
 """
-    escape_latex_text(str::String)
+    escape_latex_text_inline(str::String)
 
-Escape special LaTeX characters in regular text.
+Escape special LaTeX characters in regular text, handling only inline math.
+This is for single lines of text.
 """
-
-function escape_latex_text(str::AbstractString)
-    # First, protect math expressions by temporarily replacing them
+function escape_latex_text_inline(str::AbstractString)
+    # Protect inline math expressions
     math_expressions = String[]
     protected_str = str
     

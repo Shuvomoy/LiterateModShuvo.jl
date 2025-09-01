@@ -1,1 +1,7 @@
 /Manifest*.toml
+LiterateModShuvo.jl.code-workspace
+*.gz
+*.log
+*.aux
+*.pygtex
+CLAUDE.md

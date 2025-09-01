@@ -1,0 +1,64 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{minted}
+\usepackage{xcolor} % Required for bgcolor in minted
+\definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
+\usepackage{fontspec} %fontspec is required for code font
+\setmonofont{JuliaMono}[Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-RegularItalic, BoldItalicFont=*-BoldItalic, Contextuals=Alternate, Scale = 0.8]
+
+\title{Title: Aug 31, 2025}
+
+\begin{document}
+\maketitle
+
+
+Some text 
+
+\begin{minted}[frame=lines,framerule=2pt,mathescape=true,bgcolor=lightgray,breaklines]{julia}
+x = 1
+# a comment
+y = x+1
+## this is another comment
+\end{minted}
+
+
+\begin{equation*}
+\begin{aligned}
+  a &= b + c \\
+  & \quad + d + e \\
+  f &= g - h
+\end{aligned}
+\end{equation*}
+
+
+
+As shown in Equation, Euler's identity is a fundamental mathematical relationship.
+\section{REGNAME}
+This is markdown. Consider: 
+\begin{equation}\label{einstein}
+E = mc^2
+\end{equation}
+
+Where Equation \eqref{einstein} demonstrates the relationship between energy, mass, and the speed of light.
+
+\begin{minted}[frame=lines,framerule=2pt,mathescape=true,bgcolor=lightgray,breaklines]{julia}
+m = 1
+
+c = 3e8
+
+E = m*c^2
+\end{minted}
+
+
+Another multiline equation is as follows: 
+
+\begin{equation}\label{Ax-eq-b}
+\begin{aligned}
+  Ax &= b \\
+  x &\ge 0
+\end{aligned}
+\end{equation}
+Here, Equation \eqref{Ax-eq-b} represents a system of linear equations with non-negativity constraints.
+
+
+\end{document}
