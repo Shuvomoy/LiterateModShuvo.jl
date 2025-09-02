@@ -1,5 +1,5 @@
-# Title: `sample code`
-Some text 
+# Title: `sample_code`
+Some text and some `code`.
 
 ````julia
 x = 1

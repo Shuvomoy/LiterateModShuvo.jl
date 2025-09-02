@@ -242,18 +242,11 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
 end
 
 """
-    escape_latex_text_inline(str::String)
+    escape_latex_text_inline(str::AbstractString)
 
 Escape special LaTeX characters in regular text, handling only inline math.
-This is for single lines of text.
 """
 
-"""
-    escape_latex_text_inline(str::String)
-
-Escape special LaTeX characters in regular text, handling inline math and inline code.
-This is for single lines of text.
-"""
 function escape_latex_text_inline(str::AbstractString)
     # First, protect inline math expressions
     math_expressions = String[]
@@ -272,13 +265,18 @@ function escape_latex_text_inline(str::AbstractString)
     for m in eachmatch(code_pattern, protected_str)
         code_content = m.captures[1]
         # Escape special LaTeX characters within the code content
+        # Even inside \texttt{}, these characters need escaping
         escaped_code = code_content
-        # Only escape the most critical LaTeX special characters for texttt
         escaped_code = replace(escaped_code, "\\" => "\\textbackslash{}")
         escaped_code = replace(escaped_code, "{" => "\\{")
         escaped_code = replace(escaped_code, "}" => "\\}")
+        escaped_code = replace(escaped_code, "_" => "\\_")  # Underscores need escaping!
         escaped_code = replace(escaped_code, "^" => "\\textasciicircum{}")
         escaped_code = replace(escaped_code, "~" => "\\textasciitilde{}")
+        escaped_code = replace(escaped_code, "#" => "\\#")
+        escaped_code = replace(escaped_code, "&" => "\\&")
+        escaped_code = replace(escaped_code, "%" => "\\%")
+        escaped_code = replace(escaped_code, "\$" => "\\\$")
         # Convert to \texttt{} format
         latex_code = "\\texttt{" * escaped_code * "}"
         push!(code_expressions, latex_code)

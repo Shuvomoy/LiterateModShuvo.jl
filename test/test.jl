@@ -1,6 +1,6 @@
 #=
-# Title: `sample code`
-Some text 
+# Title: `sample_code`
+Some text and some `code`.
 =#
 x = 1
 # a comment
