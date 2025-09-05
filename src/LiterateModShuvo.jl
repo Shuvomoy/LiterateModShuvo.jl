@@ -22,12 +22,6 @@ struct FranklinFlavor <: AbstractFlavor end
 struct QuartoFlavor <: AbstractFlavor end
 struct LaTeXFlavor <: AbstractFlavor end
 
-"""
-    markdown_to_latex(md_file::String, outputdir::String, config::Dict)
-
-Convert a markdown file to LaTeX format with minted code blocks.
-"""
-
 function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     # Read the markdown file
     md_content = read(md_file, String)
@@ -49,7 +43,7 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     # Start building LaTeX content
     latex_content = IOBuffer()
     
-    # Write preamble
+    # Write preamble with additional packages for tables
     write(latex_content, """
     \\documentclass{article}
     \\usepackage{amsmath}
@@ -58,6 +52,9 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     \\definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
     \\usepackage{fontspec} %fontspec is required for code font
     \\setmonofont{JuliaMono}[Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-RegularItalic, BoldItalicFont=*-BoldItalic, Contextuals=Alternate, Scale = 0.8]
+    \\usepackage{tabularx} % For tables that fit page width
+    \\usepackage{array} % For better column formatting
+    \\usepackage{booktabs} % For professional looking tables
     
     \\title{$title}
     
@@ -70,15 +67,25 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     lines = split(md_content, '\n')
     in_code_block = false
     in_display_math = false
+    in_table = false
     code_lang = ""
     code_buffer = IOBuffer()
     math_buffer = IOBuffer()
+    table_lines = SubString{String}[]
     i = 1
     
     while i <= length(lines)
         line = lines[i]
         
-        if !in_code_block && !in_display_math
+        if !in_code_block && !in_display_math && !in_table
+            # Check for table start (line starting with |)
+            if occursin(r"^\s*\|", line)
+                in_table = true
+                table_lines = [line]
+                i += 1
+                continue
+            end
+            
             # Check for display math start - handle $$ on its own line or at start of line
             if strip(line) == "\$\$" || occursin(r"^\s*\$\$", line)
                 in_display_math = true
@@ -160,6 +167,18 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
                 # Empty line
                 write(latex_content, "\n")
             end
+        elseif in_table
+            # Continue accumulating table lines
+            if occursin(r"^\s*\|", line)
+                push!(table_lines, line)
+            else
+                # End of table - process it
+                process_markdown_table(latex_content, table_lines)
+                in_table = false
+                table_lines = SubString{String}[]
+                # Process the current line normally (it's not part of the table)
+                i -= 1  # Reprocess this line
+            end
         elseif in_display_math
             # Check for display math end - handle $$ anywhere in the line
             if occursin(r"\$\$", line)
@@ -223,6 +242,11 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
         i += 1
     end
     
+    # Handle any remaining table at end of file
+    if in_table && !isempty(table_lines)
+        process_markdown_table(latex_content, table_lines)
+    end
+    
     # Write postamble
     write(latex_content, "\\end{document}\n")
     
@@ -239,6 +263,122 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     @info "Generated LaTeX file: `$(Base.contractuser(output_path))`"
     
     return output_path
+end
+
+"""
+    process_markdown_table(io::IOBuffer, table_lines::Vector{<:AbstractString})
+
+Process markdown table lines and write LaTeX tabularx output that fits page width.
+"""
+function process_markdown_table(io::IOBuffer, table_lines::Vector{<:AbstractString})
+    if length(table_lines) < 2
+        return  # Not a valid table
+    end
+    
+    # Parse the header row
+    header_line = table_lines[1]
+    headers = split(header_line, "|")
+    headers = [strip(h) for h in headers if !isempty(strip(h))]
+    num_cols = length(headers)
+    
+    # Parse alignment row (if exists)
+    alignments = Char[]
+    data_start = 2
+    if length(table_lines) >= 2 && occursin(r"^[\s\|:\-]+$", table_lines[2])
+        align_line = table_lines[2]
+        align_parts = split(align_line, "|")
+        align_parts = [strip(a) for a in align_parts if !isempty(strip(a))]
+        
+        for part in align_parts
+            if startswith(part, ":") && endswith(part, ":")
+                push!(alignments, 'c')  # center
+            elseif endswith(part, ":")
+                push!(alignments, 'r')  # right
+            else
+                push!(alignments, 'l')  # left (default)
+            end
+        end
+        data_start = 3
+    else
+        # No alignment row, default to left
+        alignments = fill('l', num_cols)
+    end
+    
+    # For wide tables (more than 3 columns), use tabularx to fit page width
+    if num_cols > 3
+        # Create column spec using X (flexible) columns for text and regular columns for numbers
+        col_spec = ""
+        for (i, header) in enumerate(headers)
+            # Use 'X' for text columns (typically first/last), regular alignment for numeric
+            if i == 1 || contains(lowercase(header), r"(description|name|type|field|implementation|role|mathematics)")
+                col_spec *= "X"  # Flexible width column
+            else
+                col_spec *= string(alignments[i])  # Regular column with specified alignment
+            end
+        end
+        
+        # Start the tabularx environment
+        write(io, "\\begin{tabularx}{\\textwidth}{$col_spec}\n")
+        write(io, "\\toprule\n")
+        
+        # Write header row
+        processed_headers = [process_table_cell(h) for h in headers]
+        write(io, join(processed_headers, " & "), " \\\\\n")
+        write(io, "\\midrule\n")
+        
+        # Process data rows
+        for i in data_start:length(table_lines)
+            row_line = table_lines[i]
+            cells = split(row_line, "|")
+            cells = [strip(c) for c in cells if !isempty(strip(c))]
+            
+            if !isempty(cells)
+                processed_cells = [process_table_cell(c) for c in cells]
+                write(io, join(processed_cells, " & "), " \\\\\n")
+            end
+        end
+        
+        write(io, "\\bottomrule\n")
+        write(io, "\\end{tabularx}\n\n")
+    else
+        # For narrow tables, use regular tabular
+        col_spec = join(alignments)
+        write(io, "\\begin{tabular}{$col_spec}\n")
+        write(io, "\\toprule\n")
+        
+        # Write header row
+        processed_headers = [process_table_cell(h) for h in headers]
+        write(io, join(processed_headers, " & "), " \\\\\n")
+        write(io, "\\midrule\n")
+        
+        # Process data rows
+        for i in data_start:length(table_lines)
+            row_line = table_lines[i]
+            cells = split(row_line, "|")
+            cells = [strip(c) for c in cells if !isempty(strip(c))]
+            
+            if !isempty(cells)
+                processed_cells = [process_table_cell(c) for c in cells]
+                write(io, join(processed_cells, " & "), " \\\\\n")
+            end
+        end
+        
+        write(io, "\\bottomrule\n")
+        write(io, "\\end{tabular}\n\n")
+    end
+end
+
+"""
+    process_table_cell(cell::String)
+
+Process a table cell content, handling inline math and escaping.
+"""
+function process_table_cell(cell::AbstractString)
+    # Convert \(...\) to $...$
+    cell = replace(cell, r"\\\((.*?)\\\)" => s"$\1$")
+    
+    # Now process with our standard inline text escaping
+    return escape_latex_text_inline(cell)
 end
 
 """
