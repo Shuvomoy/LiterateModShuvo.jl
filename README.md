@@ -86,6 +86,8 @@ Here, Equation @eq-Ax-eq-b represents a system of linear equations with non-nega
 
 Note that equation labels should always be in format `{#eq-EquationLabel}` (will become `\label{eq-EquationLabel}` in the LaTeX file) and they need to be referred to in format `@eq-EquationLabel` (will become `\eqref{eq-EquationLabel}` in the LaTeX file).
 
+Also, `##` heading in markdown will become LaTeX section, `###` will become LaTeX subsection, `####` will become LaTeX subsubsection, and `#####` will become LaTeX paragraph.
+
 # Usage: notebook conversion
 
 Same as `Literate.jl`:
