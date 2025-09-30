@@ -47,6 +47,7 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     write(latex_content, """
     \\documentclass{article}
     \\usepackage{amsmath}
+	\\usepackage{amssymb}
     \\usepackage{minted}
     \\usepackage{xcolor} % Required for bgcolor in minted
     \\definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
@@ -55,6 +56,7 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     \\usepackage{tabularx} % For tables that fit page width
     \\usepackage{array} % For better column formatting
     \\usepackage{booktabs} % For professional looking tables
+	\\usepackage{fullpage,graphicx,psfrag,amsfonts,verbatim, url}
     
     \\title{$title}
     
