@@ -48,7 +48,7 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     \\documentclass{article}
     \\usepackage{amsmath}
 	\\usepackage{amssymb}
-    \\usepackage{minted}
+    \\usepackage[minted]{tcolorbox}
     \\usepackage{xcolor} % Required for bgcolor in minted
     \\definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
     \\usepackage{fontspec} %fontspec is required for code font
@@ -232,9 +232,9 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
                 # Write the minted environment
                 code_content = String(take!(code_buffer))
                 if !isempty(strip(code_content))
-                    write(latex_content, "\\begin{minted}[frame=lines,framerule=2pt,mathescape=true,bgcolor=lightgray,breaklines]{$code_lang}\n")
+                    write(latex_content, "\\begin{tcblisting}{listing only, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt}\n")
                     write(latex_content, code_content)
-                    write(latex_content, "\\end{minted}\n\n")
+                    write(latex_content, "\\end{tcblisting}\n\n")
                 end
                 in_code_block = false
                 code_lang = ""
