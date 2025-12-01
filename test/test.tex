@@ -1,0 +1,99 @@
+    \documentclass{article}
+    \usepackage{amsmath}
+	\usepackage{amssymb}
+    \usepackage{minted}
+    \usepackage{xcolor} % Required for bgcolor in minted
+    \definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
+    \usepackage{fontspec} %fontspec is required for code font
+    \setmonofont{JuliaMono}[Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-RegularItalic, BoldItalicFont=*-BoldItalic, Contextuals=Alternate, Scale = 0.8]
+    \usepackage{tabularx} % For tables that fit page width
+    \usepackage{array} % For better column formatting
+    \usepackage{booktabs} % For professional looking tables
+	\usepackage{fullpage,graphicx,psfrag,amsfonts,verbatim, url}
+    
+    \title{\textbf{\textsf{Title: \texttt{sample\_code}}}}
+	
+	\author{John Doe}
+    
+    \begin{document}
+    \maketitle
+    
+    
+Some text and some \texttt{code}.
+
+\begin{minted}[frame=lines,framerule=2pt,mathescape=true,bgcolor=lightgray,breaklines]{julia}
+x = 1
+# a comment
+y = x+1
+## this is another comment
+\end{minted}
+
+
+\begin{equation*}
+\begin{aligned}
+  a &= b + c \\
+  & \quad + d + e \\
+  f &= g - h
+\end{aligned}
+\end{equation*}
+
+
+
+As shown in Equation, Euler's identity is a fundamental mathematical relationship.
+\section{Einstein's Equation \texttt{E=m c\textasciicircum{}2}}
+This is markdown. Consider: 
+\begin{equation}\label{einstein}
+E = mc^2
+\end{equation}
+
+Where Equation \eqref{einstein} demonstrates the relationship between energy \texttt{e}, mass \texttt{m}, and the speed of light \texttt{c}.
+
+\begin{minted}[frame=lines,framerule=2pt,mathescape=true,bgcolor=lightgray,breaklines]{julia}
+m = 1
+
+c = 3e8
+
+E = m*c^2
+\end{minted}
+
+
+Another multiline equation is as follows: 
+
+\begin{equation}\label{Ax-eq-b}
+\begin{aligned}
+  Ax &= b \\
+  x &\ge 0
+\end{aligned}
+\end{equation}
+Here, Equation \eqref{Ax-eq-b} represents a system of linear equations with non-negativity constraints.
+
+Here is a table:
+
+\begin{tabular}{crr}
+\toprule
+Algorithm & $f(x^*)$ & Time (s) \\
+\midrule
+PDHG & 1.234 & 0.07 \\
+B\&B & 1.230 & 3.12 \\
+\bottomrule
+\end{tabular}
+
+
+Another table: 
+
+
+\begin{tabularx}{\textwidth}{XXXXX}
+\toprule
+Field & Type & Mathematics & Implementation detail & Role in the package \\
+\midrule
+\texttt{\_id} & \texttt{Int} & Pure identifier; no direct math meaning & Incremented from global \texttt{NEXT\_ID[]} & Stable identity for hashing, comparisons, dictionary keys \\
+\texttt{\_is\_leaf} & \texttt{Bool} & Indicates whether this is a fundamental vector in the Gram basis & \texttt{true} for leaf points, \texttt{false} for linear combinations & Determines Gram dimensioning and whether \texttt{.counter} is set \\
+\texttt{decomposition\_dict} & \texttt{OrderedDict\{Point,Float64\}} & Stores coefficients of the linear form $X=\sum_i \alpha_i P_i$ & For a leaf, set to \texttt{\{self => 1.0\}}; for a composite, the sparse coefficient map & Drives conversion of inner products to linear forms over G \\
+\texttt{counter} & \texttt{Union\{Int,Nothing\}} & Index i of the leaf in the Gram basis (only for leaves) & Set to \texttt{Point\_counter[]} at leaf creation, \texttt{nothing} otherwise & Used to size/index the Gram matrix and build evaluation vectors \\
+\texttt{\_value} & \texttt{Union\{Vector\{Float64\},Nothing\}} & Numerical value of the vector after solving the PEP & \texttt{nothing} until \texttt{solve!} writes results back & Enables \texttt{eval} to return a concrete vector after solve \\
+\bottomrule
+\end{tabularx}
+
+
+
+\end{document}
