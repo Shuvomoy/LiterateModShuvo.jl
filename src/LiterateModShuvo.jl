@@ -73,6 +73,7 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     in_code_block = false
     in_display_math = false
     in_table = false
+    in_list = false
     code_lang = ""
     code_buffer = IOBuffer()
     math_buffer = IOBuffer()
@@ -82,11 +83,24 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     while i <= length(lines)
         line = lines[i]
         
-        if !in_code_block && !in_display_math && !in_table
+        if !in_code_block && !in_display_math && !in_table && !in_list
             # Check for table start (line starting with |)
             if occursin(r"^\s*\|", line)
                 in_table = true
                 table_lines = [line]
+                i += 1
+                continue
+            end
+
+            # Check for unordered list start (e.g. "* item")
+            list_match = match(r"^\s*[*+-]\s+(.+)$", line)
+            if list_match !== nothing
+                in_list = true
+                write(latex_content, "\\begin{itemize}\n")
+                item_text = replace(list_match.captures[1], r"\\\((.*?)\\\)" => s"$\1$")
+                item_text = escape_latex_text_inline(item_text)
+                item_text = replace(item_text, r"@eq-([a-zA-Z0-9_-]+)" => s"\\eqref{\1}")
+                write(latex_content, "\\item $(item_text)\n")
                 i += 1
                 continue
             end
@@ -184,6 +198,28 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
                 # Process the current line normally (it's not part of the table)
                 i -= 1  # Reprocess this line
             end
+        elseif in_list
+            list_match = match(r"^\s*[*+-]\s+(.+)$", line)
+            if list_match !== nothing
+                item_text = replace(list_match.captures[1], r"\\\((.*?)\\\)" => s"$\1$")
+                item_text = escape_latex_text_inline(item_text)
+                item_text = replace(item_text, r"@eq-([a-zA-Z0-9_-]+)" => s"\\eqref{\1}")
+                write(latex_content, "\\item $(item_text)\n")
+            elseif isempty(strip(line))
+                # Look ahead: keep list open if next non-empty line is also a list item
+                j = i + 1
+                while j <= length(lines) && isempty(strip(lines[j]))
+                    j += 1
+                end
+                if j > length(lines) || match(r"^\s*[*+-]\s+(.+)$", lines[j]) === nothing
+                    write(latex_content, "\\end{itemize}\n\n")
+                    in_list = false
+                end
+            else
+                write(latex_content, "\\end{itemize}\n\n")
+                in_list = false
+                i -= 1  # Reprocess this line outside list context
+            end
         elseif in_display_math
             # Check for display math end - handle $$ anywhere in the line
             if occursin(r"\$\$", line)
@@ -250,6 +286,11 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     # Handle any remaining table at end of file
     if in_table && !isempty(table_lines)
         process_markdown_table(latex_content, table_lines)
+    end
+
+    # Handle any remaining list at end of file
+    if in_list
+        write(latex_content, "\\end{itemize}\n\n")
     end
     
     # Write postamble

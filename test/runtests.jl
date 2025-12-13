@@ -1,6 +1,20 @@
-import LiterateModShuvo, JSON
-import LiterateModShuvo: Chunk, MDChunk, CodeChunk
-import LiterateModShuvo: pick_codefence, DefaultFlavor, QuartoFlavor
+import LiterateModShuvo
 using Test
 
-LiterateModShuvo.markdown("test.jl", flavor = LiterateModShuvo.LaTeXFlavor())  
+@testset "LaTeXFlavor" begin
+    mktempdir() do outputdir
+        files = LiterateModShuvo.markdown(
+            joinpath(@__DIR__, "test.jl"),
+            outputdir;
+            flavor = LiterateModShuvo.LaTeXFlavor(),
+        )
+
+        @test isfile(files.tex)
+        tex = read(files.tex, String)
+        @test occursin("\\begin{itemize}", tex)
+        @test occursin("\\item item 1", tex)
+        @test occursin("\\item item 2", tex)
+        @test occursin("\\item item 3", tex)
+        @test occursin("\\end{itemize}", tex)
+    end
+end

@@ -1,6 +1,10 @@
 # Title: `sample_code`
 Some text and some `code`.
 
+* item 1
+* item 2
+* item 3
+
 ````julia
 x = 1
 # a comment

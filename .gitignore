@@ -1,0 +1,4 @@
+*.minted
+test/test.aux
+*.log
+*.gz

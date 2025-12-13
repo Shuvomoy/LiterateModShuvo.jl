@@ -1,7 +1,7 @@
     \documentclass{article}
     \usepackage{amsmath}
 	\usepackage{amssymb}
-    \usepackage{minted}
+    \usepackage[minted]{tcolorbox}
     \usepackage{xcolor} % Required for bgcolor in minted
     \definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
     \usepackage{fontspec} %fontspec is required for code font
@@ -22,12 +22,18 @@
     
 Some text and some \texttt{code}.
 
-\begin{minted}[frame=lines,framerule=2pt,mathescape=true,bgcolor=lightgray,breaklines]{julia}
+\begin{itemize}
+\item item 1
+\item item 2
+\item item 3
+\end{itemize}
+
+\begin{tcblisting}{listing only, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt}
 x = 1
 # a comment
 y = x+1
 ## this is another comment
-\end{minted}
+\end{tcblisting}
 
 
 \begin{equation*}
@@ -49,13 +55,13 @@ E = mc^2
 
 Where Equation \eqref{einstein} demonstrates the relationship between energy \texttt{e}, mass \texttt{m}, and the speed of light \texttt{c}.
 
-\begin{minted}[frame=lines,framerule=2pt,mathescape=true,bgcolor=lightgray,breaklines]{julia}
+\begin{tcblisting}{listing only, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt}
 m = 1
 
 c = 3e8
 
 E = m*c^2
-\end{minted}
+\end{tcblisting}
 
 
 Another multiline equation is as follows: 
