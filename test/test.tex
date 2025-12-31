@@ -11,10 +11,33 @@
     \usepackage{booktabs} % For professional looking tables
 	\usepackage{fullpage,graphicx,psfrag,amsfonts,verbatim, url}
     \usepackage{parskip}
-    
-    \title{\textbf{\textsf{Title: \texttt{sample\_code}}}}
 	
-	\author{John Doe}
+	\usepackage{titlesec}
+	\usepackage{titling}
+	\usepackage{abstract}
+
+
+	\newcommand{\headerfont}{\sffamily\bfseries\boldmath}
+
+
+	\titleformat*{\section}{\Large\headerfont}
+	\titleformat*{\subsection}{\large\headerfont}
+	\titleformat*{\subsubsection}{\normalsize\headerfont}
+	\titleformat*{\paragraph}{\normalsize\headerfont}
+	\titleformat*{\subparagraph}{\normalsize\headerfont}
+
+
+	\renewcommand\abstractnamefont{\headerfont}
+
+
+	\pretitle{\begin{center}\LARGE\headerfont}
+	\posttitle{\end{center}}
+	\preauthor{\begin{center}\large\headerfont}
+	\postauthor{\end{center}}
+    
+    \title{My Title}
+	
+	\author{Shuvomoy Das Gupta}
     
     \begin{document}
     \maketitle
@@ -50,7 +73,7 @@ As shown in Equation, Euler's identity is a fundamental mathematical relationshi
 \section{Einstein's Equation \texttt{E=m c\textasciicircum{}2}}
 This is markdown. Consider: 
 \begin{equation}\label{einstein}
-E = mc^2
+E = μ c^2
 \end{equation}
 
 Where Equation \eqref{einstein} demonstrates the relationship between energy \texttt{e}, mass \texttt{m}, and the speed of light \texttt{c}.
@@ -60,7 +83,7 @@ m = 1
 
 c = 3e8
 
-E = m*c^2
+E = μ*c^2
 \end{tcblisting}
 
 

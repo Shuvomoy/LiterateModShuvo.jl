@@ -58,10 +58,33 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     \\usepackage{booktabs} % For professional looking tables
 	\\usepackage{fullpage,graphicx,psfrag,amsfonts,verbatim, url}
     \\usepackage{parskip}
-    
-    \\title{\\textbf{\\textsf{$title}}}
 	
-	\\author{John Doe}
+	\\usepackage{titlesec}
+	\\usepackage{titling}
+	\\usepackage{abstract}
+
+
+	\\newcommand{\\headerfont}{\\sffamily\\bfseries\\boldmath}
+
+
+	\\titleformat*{\\section}{\\Large\\headerfont}
+	\\titleformat*{\\subsection}{\\large\\headerfont}
+	\\titleformat*{\\subsubsection}{\\normalsize\\headerfont}
+	\\titleformat*{\\paragraph}{\\normalsize\\headerfont}
+	\\titleformat*{\\subparagraph}{\\normalsize\\headerfont}
+
+
+	\\renewcommand\\abstractnamefont{\\headerfont}
+
+
+	\\pretitle{\\begin{center}\\LARGE\\headerfont}
+	\\posttitle{\\end{center}}
+	\\preauthor{\\begin{center}\\large\\headerfont}
+	\\postauthor{\\end{center}}
+    
+    \\title{My Title}
+	
+	\\author{Shuvomoy Das Gupta}
     
     \\begin{document}
     \\maketitle
