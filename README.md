@@ -88,6 +88,34 @@ Note that equation labels should always be in format `{#eq-EquationLabel}` (will
 
 Also, `##` heading in markdown will become LaTeX section, `###` will become LaTeX subsection, `####` will become LaTeX subsubsection, and `#####` will become LaTeX paragraph.
 
+## Usage: LaTeX <-> Julia conversion
+
+Convert a LaTeX `.tex` file into a "disciplined" Julia `.jl` file:
+
+```
+LiterateModShuvo.LaTeX2Jul("paper.tex")                  # writes paper.jl in pwd
+LiterateModShuvo.LaTeX2Jul("paper.tex", "outdir")        # optional output dir
+```
+
+Rules:
+
+- `tcblisting` blocks become Julia code.
+- Everything else becomes `#= ... =#` blocks.
+- Display math `\[ ... \]` and common display environments are rewritten to `$$ ... $$`.
+
+Convert back to LaTeX:
+
+```
+LiterateModShuvo.Jul2LaTeX("notes.jl")                   # writes notes.tex alongside input
+LiterateModShuvo.Jul2LaTeX("notes.jl", convert_bracket_math_only_if_no_begin = false)
+```
+
+Rules:
+
+- Julia code outside `#= ... =#` becomes `tcblisting` (minted).
+- Text inside `#= ... =#` is treated as LaTeX.
+- `$$ ... $$` without `\begin{...}` becomes `\[ ... \]`; display environments wrapped in `$$` are unwrapped.
+
 # Usage: notebook conversion
 
 Same as `Literate.jl`:

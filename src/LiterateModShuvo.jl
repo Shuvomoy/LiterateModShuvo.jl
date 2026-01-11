@@ -11,7 +11,7 @@ include("IJulia.jl")
 import .IJulia
 
 if VERSION >= v"1.11.0-DEV.469"
-    eval(Meta.parse("public markdown, notebook, script"))
+    eval(Meta.parse("public markdown, notebook, script, LaTeX2Jul, Jul2LaTeX"))
 end
 
 abstract type AbstractFlavor end
@@ -1544,6 +1544,548 @@ function execute_block(
         end
     end
     return c.value, c.output, disp.data
+end
+
+# -------------------------------------------------------------------
+# LaTeX (.tex) -> disciplined Julia (.jl) conversion
+# -------------------------------------------------------------------
+
+const _LATEX2JUL_DEFAULT_DISPLAY_ENVS = Set{String}([
+    "equation", "equation*",
+    "align", "align*",
+    "gather", "gather*",
+    "multline", "multline*",
+    "eqnarray", "eqnarray*",
+    "flalign", "flalign*",
+    # Common additional AMS display environment (optional but harmless)
+    "alignat", "alignat*",
+])
+
+const _LATEX2JUL_RE_BEGIN_TCBLISTING = r"\\begin\{tcblisting\}"
+const _LATEX2JUL_RE_END_TCBLISTING   = r"\\end\{tcblisting\}"
+
+const _LATEX2JUL_RE_BEGIN_ENV = r"\\begin\{([^}]+)\}"
+const _LATEX2JUL_RE_END_ENV   = r"\\end\{([^}]+)\}"
+
+# \[ and \] *not* preceded by an extra backslash (so we don't touch things like \\[...])
+const _LATEX2JUL_RE_OPEN_BRACKET_MATH  = r"(?<!\\)\\\["  # matches \[
+const _LATEX2JUL_RE_CLOSE_BRACKET_MATH = r"(?<!\\)\\\]"  # matches \]
+
+# Strip only trailing newline characters, but keep trailing spaces intact.
+function _latex2jul_rstrip_newlines(s::String)
+    isempty(s) && return s
+    i = lastindex(s)
+    while i >= firstindex(s)
+        c = s[i]
+        if c == '\n' || c == '\r'
+            i = prevind(s, i)
+        else
+            break
+        end
+    end
+    return i < firstindex(s) ? "" : s[1:i]
+end
+
+function _latex2jul_convert_display_math(tex::String; display_envs::Set{String} = _LATEX2JUL_DEFAULT_DISPLAY_ENVS)
+    io = IOBuffer()
+    for rawline in eachline(IOBuffer(tex); keep = true)
+        # Split off a single trailing '\n' (if present) so we can append $$ before the newline.
+        has_nl = endswith(rawline, '\n')
+        body = has_nl ? rawline[1:(end - 1)] : rawline
+        nl = has_nl ? "\n" : ""
+
+        # Special case: if the whole line is just \[ or \], replace with $$ (preserve indentation)
+        stripped = strip(body)
+        if stripped == "\\[" || stripped == "\\]"
+            indent = match(r"^(\h*)", body)
+            if indent === nothing
+                write(io, "\$\$", nl)
+            else
+                write(io, indent.captures[1], "\$\$", nl)
+            end
+            continue
+        end
+
+        # General replacement of \[ and \] (only when they are not part of \\[ ... optional args)
+        body2 = replace(body, _LATEX2JUL_RE_OPEN_BRACKET_MATH => "\$\$")
+        body2 = replace(body2, _LATEX2JUL_RE_CLOSE_BRACKET_MATH => "\$\$")
+
+        # Wrap common display environments with $$ ... $$ by editing the \begin/\end lines.
+        if (m = match(_LATEX2JUL_RE_BEGIN_ENV, body2)) !== nothing
+            env = m.captures[1]
+            if env in display_envs
+                begin_tok = "\\begin{$env}"
+                wrapped = "\$\$" * begin_tok
+                if !occursin(wrapped, body2)
+                    body2 = replace(body2, begin_tok => wrapped, count = 1)
+                end
+            end
+        end
+        if (m = match(_LATEX2JUL_RE_END_ENV, body2)) !== nothing
+            env = m.captures[1]
+            if env in display_envs
+                end_tok = "\\end{$env}"
+                wrapped = end_tok * "\$\$"
+                if !occursin(wrapped, body2)
+                    body2 = replace(body2, end_tok => wrapped, count = 1)
+                end
+            end
+        end
+
+        write(io, body2, nl)
+    end
+    return String(take!(io))
+end
+
+function _latex2jul_flush_text!(
+    out::IO,
+    textbuf::IOBuffer;
+    strip_boundary_blank_lines::Bool = true,
+    display_envs::Set{String} = _LATEX2JUL_DEFAULT_DISPLAY_ENVS,
+)
+    text = String(take!(textbuf))
+    isempty(text) && return
+
+    if !strip_boundary_blank_lines
+        processed = _latex2jul_convert_display_math(text; display_envs = display_envs)
+        write(out, "#=\n")
+        write(out, processed)
+        if !endswith(processed, "\n")
+            write(out, '\n')
+        end
+        write(out, "=#\n")
+        return
+    end
+
+    lines = collect(eachline(IOBuffer(text); keep = true))
+    first_nonblank = findfirst(l -> !isempty(strip(l)), lines)
+
+    if first_nonblank === nothing
+        # Only whitespace/newlines: emit as-is (blank lines are "safe" outside comment blocks)
+        write(out, text)
+        return
+    end
+
+    last_nonblank = findlast(l -> !isempty(strip(l)), lines)
+
+    # Emit leading blank lines as-is
+    for i in 1:(first_nonblank - 1)
+        write(out, lines[i])
+    end
+
+    # Middle (non-blank-bounded) gets wrapped in a Julia multiline comment block
+    middle_io = IOBuffer()
+    for i in first_nonblank:last_nonblank
+        write(middle_io, lines[i])
+    end
+    middle = String(take!(middle_io))
+    processed = _latex2jul_convert_display_math(middle; display_envs = display_envs)
+    processed = _latex2jul_rstrip_newlines(processed)
+
+    write(out, "#=\n")
+    write(out, processed)
+    write(out, "\n=#\n")
+
+    # Emit trailing blank lines as-is
+    for i in (last_nonblank + 1):length(lines)
+        write(out, lines[i])
+    end
+
+    return
+end
+
+"""
+    LiterateModShuvo.LaTeX2Jul(inputfile::AbstractString, outputdir::AbstractString=pwd();
+                              strip_boundary_blank_lines::Bool=true)
+
+Convert a LaTeX `.tex` file into a “disciplined” Julia `.jl` file:
+
+  * The contents of every `tcblisting` environment become Julia code.
+    The `\\begin{tcblisting}{...}` and `\\end{tcblisting}` lines are omitted.
+  * Everything else becomes a Julia multiline comment block (`#= ... =#`),
+    with displayed equations made MathJax/markdown-friendly:
+      - `\\[` and `\\]` are replaced by `\$\$`.
+      - Standard display environments (equation/align/gather/...) are wrapped as `\$\$ ... \$\$`
+        by prepending `\$\$` to the `\\begin{...}` line and appending `\$\$` to the `\\end{...}` line.
+
+Returns the path to the generated `.jl` file.
+"""
+function LaTeX2Jul(inputfile::AbstractString, outputdir::AbstractString = pwd();
+                   strip_boundary_blank_lines::Bool = true)
+
+    inputfile = normpath(inputfile)
+    isfile(inputfile) || throw(ArgumentError("LaTeX2Jul: cannot find inputfile `$(inputfile)`"))
+
+    # Mirror the style of the rest of the package: always write into `outputdir`.
+    mkpath(outputdir)
+    outputfile = joinpath(outputdir, filename(inputfile) * ".jl")
+    if normpath(inputfile) == normpath(outputfile)
+        throw(ArgumentError("LaTeX2Jul: outputfile (`$outputfile`) is identical to inputfile (`$inputfile`)"))
+    end
+
+    @info "generating plain script file from LaTeX `$(Base.contractuser(inputfile))`"
+    content = read(inputfile, String)
+
+    # Normalize Windows newlines to simplify parsing
+    content = replace(content, "\r\n" => "\n")
+
+    out = IOBuffer()
+    textbuf = IOBuffer()
+    codebuf = IOBuffer()
+    in_listing = false
+
+    for rawline in eachline(IOBuffer(content); keep = true)
+        if !in_listing
+            if occursin(_LATEX2JUL_RE_BEGIN_TCBLISTING, rawline)
+                _latex2jul_flush_text!(
+                    out,
+                    textbuf;
+                    strip_boundary_blank_lines = strip_boundary_blank_lines,
+                )
+                in_listing = true
+                codebuf = IOBuffer()  # reset
+                continue  # omit the \begin{tcblisting}{...} line
+            else
+                write(textbuf, rawline)
+            end
+        else
+            if occursin(_LATEX2JUL_RE_END_TCBLISTING, rawline)
+                code = String(take!(codebuf))
+                if !isempty(code)
+                    write(out, code)
+                    endswith(code, "\n") || write(out, '\n')
+                end
+                in_listing = false
+                continue  # omit the \end{tcblisting} line
+            else
+                write(codebuf, rawline)
+            end
+        end
+    end
+
+    in_listing && throw(ArgumentError("LaTeX2Jul: unterminated \\begin{tcblisting} ... \\end{tcblisting} in `$(inputfile)`"))
+
+    # Flush remaining tail text (after the last listing)
+    _latex2jul_flush_text!(
+        out,
+        textbuf;
+        strip_boundary_blank_lines = strip_boundary_blank_lines,
+    )
+
+    # Write result
+    result = String(take!(out))
+    open(outputfile, "w") do io
+        write(io, result)
+    end
+    @info "writing result to `$(Base.contractuser(outputfile))`"
+    return outputfile
+end
+
+# -----------------------------------------------------------------------------
+# Jul2LaTeX: disciplined Julia (.jl)  ->  LaTeX (.tex)
+# -----------------------------------------------------------------------------
+
+const _JUL2LATEX_TCBLISTING_HEADER = raw"\begin{tcblisting}{listing only, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt}"
+const _JUL2LATEX_TCBLISTING_FOOTER = raw"\end{tcblisting}"
+
+# Keep delimiter detection consistent with your `parse` function.
+const _JUL2LATEX_RE_MD_START = r"^\h*#=+\h*$"
+const _JUL2LATEX_RE_MD_END   = r"^\h*=+#+?\h*$"
+
+# Reverse the LaTeX2Jul display-math edits inside a LaTeX-text chunk.
+#
+# Rules implemented (as requested):
+#  1) If $$ wraps a known display environment begin/end (equation, align, ...),
+#     remove those surrounding $$.
+#  2) If a block is enclosed in standalone lines "$$" ... "$$" and the interior
+#     does NOT contain "\begin{", replace those $$-lines with \[ and \].
+#  3) If a single line contains $$ ... $$ and the interior does NOT contain "\begin{",
+#     replace with \[ ... \].
+function _jul2latex_reverse_equations(
+    tex::String;
+    convert_bracket_math_only_if_no_begin::Bool = true,
+    display_envs = _LATEX2JUL_DEFAULT_DISPLAY_ENVS,  # from your already-added LaTeX2Jul
+)
+    s = tex
+
+    # (A) Remove $$ that directly wrap known display environments, e.g.
+    #     $$\begin{equation} ... \end{equation}$$  ->  \begin{equation} ... \end{equation}
+    for env in display_envs
+        s = replace(s,
+            Regex("\\\$\\\$\\s*\\\\begin\\{\\Q$(env)\\E\\}") => "\\\\begin{$env}"
+        )
+        s = replace(s,
+            Regex("\\\\end\\{\\Q$(env)\\E\\}\\s*\\\$\\\$") => "\\\\end{$env}"
+        )
+    end
+
+    # (B) Convert multiline standalone "$$" blocks to "\[...\]" when allowed.
+    s = _jul2latex_convert_standalone_dollars_to_brackets(
+        s; only_if_no_begin = convert_bracket_math_only_if_no_begin
+    )
+
+    # (C) Convert inline "$$ ... $$" (same line) to "\[ ... \]" when allowed.
+    s = _jul2latex_convert_inline_dollars_to_brackets(
+        s; only_if_no_begin = convert_bracket_math_only_if_no_begin
+    )
+
+    return s
+end
+
+function _jul2latex_convert_standalone_dollars_to_brackets(
+    tex::String;
+    only_if_no_begin::Bool = true,
+)
+    lines = split(tex, "\n"; keepempty = true)
+    out_lines = String[]
+    i = 1
+
+    while i <= length(lines)
+        line = lines[i]
+
+        if strip(line) == "\$\$"
+            m_open = match(r"^(\h*)", line)
+            indent_open = m_open === nothing ? "" : m_open.captures[1]
+
+            j = i + 1
+            body_lines = String[]
+            while j <= length(lines) && strip(lines[j]) != "\$\$"
+                push!(body_lines, lines[j])
+                j += 1
+            end
+
+            # Unterminated $$ ... just keep the remainder unchanged.
+            if j > length(lines)
+                push!(out_lines, line)
+                append!(out_lines, body_lines)
+                break
+            end
+
+            close_line = lines[j]
+            m_close = match(r"^(\h*)", close_line)
+            indent_close = m_close === nothing ? "" : m_close.captures[1]
+
+            body = join(body_lines, "\n")
+            has_begin = occursin(r"\\begin\s*\{", body)
+
+            if only_if_no_begin && has_begin
+                # Keep as $$ ... $$ (requested behavior)
+                push!(out_lines, line)
+                append!(out_lines, body_lines)
+                push!(out_lines, close_line)
+            else
+                # Convert $$ ... $$  ->  \[ ... \]
+                push!(out_lines, indent_open * "\\[")
+                append!(out_lines, body_lines)
+                push!(out_lines, indent_close * "\\]")
+            end
+
+            i = j + 1
+            continue
+        end
+
+        push!(out_lines, line)
+        i += 1
+    end
+
+    return join(out_lines, "\n")
+end
+
+function _jul2latex_convert_inline_dollars_to_brackets(
+    tex::String;
+    only_if_no_begin::Bool = true,
+)
+    lines = split(tex, "\n"; keepempty = true)
+
+    for k in eachindex(lines)
+        line = lines[k]
+
+        # Skip delimiter-only lines; multiline handler decides what to do with them.
+        if strip(line) == "\$\$" || !occursin("\$\$", line)
+            continue
+        end
+
+        out = IOBuffer()
+        pos = firstindex(line)
+
+        while true
+            m = findnext("\$\$", line, pos)
+            if m === nothing
+                write(out, SubString(line, pos))
+                break
+            end
+
+            open_start = first(m)
+            open_end = last(m)
+
+            if open_start > pos
+                write(out, SubString(line, pos, prevind(line, open_start)))
+            end
+
+            after_open = nextind(line, open_end)
+            m2 = findnext("\$\$", line, after_open)
+            if m2 === nothing
+                # No closing $$; keep the rest as-is.
+                write(out, SubString(line, open_start))
+                break
+            end
+
+            close_start = first(m2)
+            close_end = last(m2)
+
+            inner =
+                close_start > after_open ? SubString(line, after_open, prevind(line, close_start)) : ""
+
+            has_begin = occursin(r"\\begin\s*\{", inner)
+
+            if only_if_no_begin && has_begin
+                write(out, "\$\$", inner, "\$\$")
+            else
+                write(out, "\\[", inner, "\\]")
+            end
+
+            pos = nextind(line, close_end)
+            if pos > lastindex(line)
+                break
+            end
+        end
+
+        lines[k] = String(take!(out))
+    end
+
+    return join(lines, "\n")
+end
+
+function _jul2latex_flush_code_block!(
+    out::IO,
+    code_lines::Vector{String};
+    header::AbstractString = _JUL2LATEX_TCBLISTING_HEADER,
+    footer::AbstractString = _JUL2LATEX_TCBLISTING_FOOTER,
+)
+    isempty(code_lines) && return
+
+    first_nb = findfirst(l -> !isempty(strip(l)), code_lines)
+    if first_nb === nothing
+        # All blank: write verbatim as blank lines.
+        for l in code_lines
+            write(out, l, "\n")
+        end
+        return
+    end
+    last_nb = findlast(l -> !isempty(strip(l)), code_lines)
+
+    # leading blank lines (kept outside listing)
+    for i in 1:(first_nb - 1)
+        write(out, code_lines[i], "\n")
+    end
+
+    # listing block
+    write(out, header, "\n")
+    for i in first_nb:last_nb
+        write(out, code_lines[i], "\n")
+    end
+    write(out, footer, "\n\n")
+
+    # trailing blank lines (kept outside listing)
+    for i in (last_nb + 1):length(code_lines)
+        write(out, code_lines[i], "\n")
+    end
+
+    return
+end
+
+function _jul2latex_flush_text_block!(
+    out::IO,
+    text_lines::Vector{String};
+    convert_bracket_math_only_if_no_begin::Bool = true,
+)
+    isempty(text_lines) && return
+
+    tex = join(text_lines, "\n")
+    tex2 = _jul2latex_reverse_equations(
+        tex;
+        convert_bracket_math_only_if_no_begin = convert_bracket_math_only_if_no_begin,
+    )
+
+    write(out, tex2)
+    if !endswith(tex2, "\n")
+        write(out, "\n")
+    end
+    return
+end
+
+"""
+    Jul2LaTeX(inputfile::AbstractString; convert_bracket_math_only_if_no_begin::Bool=true)
+
+Reverse of `LaTeX2Jul` for disciplined `.jl` files:
+
+- Julia code outside `#= ... =#` is wrapped in a `tcblisting` environment (minted/julia).
+- Content inside `#= ... =#` is treated as LaTeX text (markers removed).
+- Equation formatting is reversed:
+  * `\$\$\\begin{equation}...\\end{equation}\$\$` (and similar display envs) -> remove surrounding `\$\$`.
+  * Standalone `\$\$ ... \$\$` blocks that do *not* contain `\\begin{...}` -> convert to `\\[ ... \\]`.
+
+Writes `file_name.tex` in the same directory as `inputfile` and returns the output path.
+"""
+function Jul2LaTeX(
+    inputfile::AbstractString;
+    convert_bracket_math_only_if_no_begin::Bool = true,
+)
+    inputfile = normpath(inputfile)
+    isfile(inputfile) || throw(ArgumentError("Jul2LaTeX: cannot find input file: `$inputfile`"))
+
+    outdir = dirname(inputfile)
+    outputfile = joinpath(outdir, filename(inputfile) * ".tex")
+
+    content = read(inputfile, String)
+    # normalize newlines
+    content = replace(content, "\r\n" => "\n", "\r" => "\n")
+    lines = split(content, "\n"; keepempty = true)
+
+    out = IOBuffer()
+
+    in_text = false
+    code_lines = String[]
+    text_lines = String[]
+
+    for line in lines
+        if !in_text && occursin(_JUL2LATEX_RE_MD_START, line)
+            _jul2latex_flush_code_block!(out, code_lines)
+            empty!(code_lines)
+            in_text = true
+            continue
+        end
+
+        if in_text && occursin(_JUL2LATEX_RE_MD_END, line)
+            _jul2latex_flush_text_block!(
+                out,
+                text_lines;
+                convert_bracket_math_only_if_no_begin = convert_bracket_math_only_if_no_begin,
+            )
+            empty!(text_lines)
+            in_text = false
+            continue
+        end
+
+        if in_text
+            push!(text_lines, line)
+        else
+            push!(code_lines, line)
+        end
+    end
+
+    if in_text
+        throw(ArgumentError("Jul2LaTeX: unterminated #= ... =# block in `$inputfile`"))
+    end
+
+    _jul2latex_flush_code_block!(out, code_lines)
+
+    open(outputfile, "w") do io
+        write(io, String(take!(out)))
+    end
+
+    @info "Generated LaTeX file: `$(Base.contractuser(outputfile))`"
+    return outputfile
 end
 
 end # module
