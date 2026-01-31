@@ -45,50 +45,51 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     
     # Write preamble with additional packages for tables
     write(latex_content, """
-    \\documentclass{article}
-    \\usepackage{amsmath}
-	\\usepackage{amssymb}
-    \\usepackage[minted]{tcolorbox}
-    \\usepackage{xcolor} % Required for bgcolor in minted
-    \\definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
-    \\usepackage{fontspec} %fontspec is required for code font
-    \\setmonofont{JuliaMono}[Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-RegularItalic, BoldItalicFont=*-BoldItalic, Contextuals=Alternate, Scale = 0.8]
-    \\usepackage{tabularx} % For tables that fit page width
-    \\usepackage{array} % For better column formatting
-    \\usepackage{booktabs} % For professional looking tables
-	\\usepackage{fullpage,graphicx,psfrag,amsfonts,verbatim, url}
-    \\usepackage{parskip}
-	
-	\\usepackage{titlesec}
-	\\usepackage{titling}
-	\\usepackage{abstract}
+\\documentclass{article}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage[minted]{tcolorbox}
+\\tcbuselibrary{breakable}
+\\usepackage{xcolor} % Required for bgcolor in minted
+\\definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
+\\usepackage{fontspec} %fontspec is required for code font
+\\setmonofont{JuliaMono}[Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-RegularItalic, BoldItalicFont=*-BoldItalic, Contextuals=Alternate, Scale = 0.8]
+\\usepackage{tabularx} % For tables that fit page width
+\\usepackage{array} % For better column formatting
+\\usepackage{booktabs} % For professional looking tables
+\\usepackage{fullpage,graphicx,psfrag,amsfonts,verbatim, url}
+\\usepackage{parskip}
+
+\\usepackage{titlesec}
+\\usepackage{titling}
+\\usepackage{abstract}
 
 
-	\\newcommand{\\headerfont}{\\sffamily\\bfseries\\boldmath}
+\\newcommand{\\headerfont}{\\sffamily\\bfseries\\boldmath}
 
 
-	\\titleformat*{\\section}{\\Large\\headerfont}
-	\\titleformat*{\\subsection}{\\large\\headerfont}
-	\\titleformat*{\\subsubsection}{\\normalsize\\headerfont}
-	\\titleformat*{\\paragraph}{\\normalsize\\headerfont}
-	\\titleformat*{\\subparagraph}{\\normalsize\\headerfont}
+\\titleformat*{\\section}{\\Large\\headerfont}
+\\titleformat*{\\subsection}{\\large\\headerfont}
+\\titleformat*{\\subsubsection}{\\normalsize\\headerfont}
+\\titleformat*{\\paragraph}{\\normalsize\\headerfont}
+\\titleformat*{\\subparagraph}{\\normalsize\\headerfont}
 
 
-	\\renewcommand\\abstractnamefont{\\headerfont}
+\\renewcommand\\abstractnamefont{\\headerfont}
 
 
-	\\pretitle{\\begin{center}\\LARGE\\headerfont}
-	\\posttitle{\\end{center}}
-	\\preauthor{\\begin{center}\\large\\headerfont}
-	\\postauthor{\\end{center}}
-    
-    \\title{My Title}
-	
-	\\author{Shuvomoy Das Gupta}
-    
-    \\begin{document}
-    \\maketitle
-    
+\\pretitle{\\begin{center}\\LARGE\\headerfont}
+\\posttitle{\\end{center}}
+\\preauthor{\\begin{center}\\large\\headerfont}
+\\postauthor{\\end{center}}
+
+\\title{My Title}
+
+\\author{Shuvomoy Das Gupta}
+
+\\begin{document}
+\\maketitle
+   
     """)
     
     # Process the markdown content line by line
@@ -102,6 +103,111 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
     math_buffer = IOBuffer()
     table_lines = SubString{String}[]
     i = 1
+
+    display_env_bases = Set([
+        "equation",
+        "align",
+        "gather",
+        "multline",
+        "flalign",
+        "alignat",
+        "eqnarray",
+    ])
+
+    function _md2tex_display_wrapper_info(math::AbstractString)
+        s = strip(String(math))
+
+        if startswith(s, "\\[") && endswith(s, "\\]")
+            return (:bracket, "", false)
+        end
+
+        if (m = match(r"^\\begin\{([A-Za-z]+\*?)\}", s)) !== nothing
+            env = String(m.captures[1])
+            is_star = endswith(env, "*")
+            base = is_star ? env[1:(end - 1)] : env
+            if base in display_env_bases
+                return (:environment, env, is_star)
+            end
+        end
+
+        return (:none, "", false)
+    end
+
+    function _md2tex_insert_label_after_begin(math::AbstractString, env::AbstractString, label::AbstractString)
+        existing = match(r"\\label\{([^}]+)\}", math)
+        if existing !== nothing
+            existing_label = String(existing.captures[1])
+            if existing_label != label
+                error("""
+                Labeled display math has conflicting labels.
+
+                Found: \\label{$(existing_label)}
+                Expected (from markdown): \\label{$(label)}
+
+                Please remove the existing \\label{...} or make it match the markdown label.
+                """)
+            end
+            return String(math)
+        end
+
+        needle = "\\begin{$(env)}"
+        occursin(needle, math) || error("Internal error: expected to find `$needle` in display-math environment.")
+        return replace(String(math), needle => needle * "\n\\label{$(label)}"; count = 1)
+    end
+
+    function _md2tex_write_display_math!(io::IO, math::AbstractString, label_match)
+        content = strip(String(math))
+
+        if label_match === nothing
+            wrapper, _, _ = _md2tex_display_wrapper_info(content)
+            if wrapper == :none
+                write(io, "\\[\n")
+                write(io, content, "\n")
+                write(io, "\\]\n")
+            else
+                write(io, content, "\n")
+            end
+            return
+        end
+
+        label_raw = String(label_match.captures[1])
+        if !startswith(label_raw, "eq-")
+            error("""
+            Invalid equation label format: {#$label_raw}
+            For compatibility, equation labels must always start with 'eq-'.
+            Please use the format: {#eq-SomeLabel}
+            And refer to it using: @eq-SomeLabel
+            """)
+        end
+
+        # Convert e.g. "eq-einstein" -> "einstein" for the LaTeX label key (matches @eq-einstein -> \eqref{einstein})
+        label = replace(label_raw, r"^eq-" => "")
+
+        wrapper, env, is_star = _md2tex_display_wrapper_info(content)
+        if wrapper == :bracket
+            error("""
+            Labeled display math must use a numbered environment (equation/align/...) and cannot use \\[ ... \\].
+
+            Found label: {#$label_raw}
+            """)
+        elseif wrapper == :environment
+            if is_star
+                error("""
+                Labeled display math must use a numbered environment (equation/align/...) and cannot use starred forms.
+
+                Found environment: \\begin{$(env)}
+                Found label: {#$label_raw}
+                """)
+            end
+            content2 = _md2tex_insert_label_after_begin(content, env, label)
+            write(io, content2, "\n")
+        else
+            write(io, "\\begin{equation}\\label{$(label)}\n")
+            write(io, content, "\n")
+            write(io, "\\end{equation}\n")
+        end
+        return
+    end
     
     while i <= length(lines)
         line = lines[i]
@@ -138,31 +244,7 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
                     math_content = replace(line, r"^\s*\$\$(.*?)\$\$.*$" => s"\1")
                     # Check for label after $$
                     label_match = match(r"\$\$\s*\{#([^}]+)\}", line)
-                    if label_match !== nothing
-                        label = label_match.captures[1]
-                        # Validate that label starts with "eq-"
-                        if !startswith(label, "eq-")
-                            error("""
-                            Invalid equation label format: {#$label}
-                            # Validate that label starts with "eq-"
-                            For compatibility, equation labels must always start with 'eq-'.
-                            Please use the format: {#eq-SomeLabel}
-                            And refer to it using: @eq-SomeLabel
-                            
-                            Found in line: $line
-                            """)
-                        end                    
-                        # Remove "eq-" prefix if present for LaTeX label
-                        label = replace(label, r"^eq-" => "")
-                        write(latex_content, "\\begin{equation}\\label{$(label)}\n")
-                        write(latex_content, strip(math_content), "\n")
-                        write(latex_content, "\\end{equation}\n")
-                    else
-                        # No label - use equation* for unnumbered equation
-                        write(latex_content, "\\begin{equation*}\n")
-                        write(latex_content, strip(math_content), "\n")
-                        write(latex_content, "\\end{equation*}\n")
-                    end
+                    _md2tex_write_display_math!(latex_content, math_content, label_match)
                     in_display_math = false
                 else
                     # Multi-line display math starts
@@ -253,33 +335,8 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
                 end
                 # Check for label after $$
                 label_match = match(r"\$\$\s*\{#([^}]+)\}", line)
-                # Write the equation environment
                 math_content = String(take!(math_buffer))
-                if label_match !== nothing
-                    label = label_match.captures[1]
-                    # Validate that label starts with "eq-"
-                    if !startswith(label, "eq-")
-                        error("""
-                        Invalid equation label format: {#$label}
-                        
-                        For compatibility, equation labels must always start with 'eq-'.
-                        Please use the format: {#eq-SomeLabel}
-                        And refer to it using: @eq-SomeLabel
-                        
-                        Found in line: $line
-                        """)
-                    end                    
-                    # Convert eq-einstein to einstein for LaTeX label
-                    label = replace(label, r"^eq-" => "")
-                    write(latex_content, "\\begin{equation}\\label{$(label)}\n")
-                    write(latex_content, strip(math_content), "\n")
-                    write(latex_content, "\\end{equation}\n")
-                else
-                    # No label - use equation* for unnumbered equation
-                    write(latex_content, "\\begin{equation*}\n")
-                    write(latex_content, strip(math_content), "\n")
-                    write(latex_content, "\\end{equation*}\n")
-                end
+                _md2tex_write_display_math!(latex_content, math_content, label_match)
                 in_display_math = false
             else
                 # Accumulate math content
@@ -291,7 +348,7 @@ function markdown_to_latex(md_file::String, outputdir::String, config::Dict)
                 # Write the minted environment
                 code_content = String(take!(code_buffer))
                 if !isempty(strip(code_content))
-                    write(latex_content, "\\begin{tcblisting}{listing only, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt}\n")
+                    write(latex_content, "\\begin{tcblisting}{listing only, breakable, listing engine=minted, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt, bottomrule at break=-1pt, toprule at break=-1pt}\n")
                     write(latex_content, code_content)
                     write(latex_content, "\\end{tcblisting}\n\n")
                 end
@@ -1785,7 +1842,7 @@ end
 # Jul2LaTeX: disciplined Julia (.jl)  ->  LaTeX (.tex)
 # -----------------------------------------------------------------------------
 
-const _JUL2LATEX_TCBLISTING_HEADER = raw"\begin{tcblisting}{listing only, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt}"
+const _JUL2LATEX_TCBLISTING_HEADER = raw"\begin{tcblisting}{listing only, breakable, listing engine=minted, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt, bottomrule at break=-1pt, toprule at break=-1pt}"
 const _JUL2LATEX_TCBLISTING_FOOTER = raw"\end{tcblisting}"
 
 # Keep delimiter detection consistent with your `parse` function.

@@ -1,47 +1,48 @@
-    \documentclass{article}
-    \usepackage{amsmath}
-	\usepackage{amssymb}
-    \usepackage[minted]{tcolorbox}
-    \usepackage{xcolor} % Required for bgcolor in minted
-    \definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
-    \usepackage{fontspec} %fontspec is required for code font
-    \setmonofont{JuliaMono}[Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-RegularItalic, BoldItalicFont=*-BoldItalic, Contextuals=Alternate, Scale = 0.8]
-    \usepackage{tabularx} % For tables that fit page width
-    \usepackage{array} % For better column formatting
-    \usepackage{booktabs} % For professional looking tables
-	\usepackage{fullpage,graphicx,psfrag,amsfonts,verbatim, url}
-    \usepackage{parskip}
-	
-	\usepackage{titlesec}
-	\usepackage{titling}
-	\usepackage{abstract}
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[minted]{tcolorbox}
+\tcbuselibrary{breakable}
+\usepackage{xcolor} % Required for bgcolor in minted
+\definecolor{lightgray}{rgb}{0.9,0.9,0.9} % Define lightgray if not already defined
+\usepackage{fontspec} %fontspec is required for code font
+\setmonofont{JuliaMono}[Extension=.ttf, UprightFont=*-Regular, BoldFont=*-Bold, ItalicFont=*-RegularItalic, BoldItalicFont=*-BoldItalic, Contextuals=Alternate, Scale = 0.8]
+\usepackage{tabularx} % For tables that fit page width
+\usepackage{array} % For better column formatting
+\usepackage{booktabs} % For professional looking tables
+\usepackage{fullpage,graphicx,psfrag,amsfonts,verbatim, url}
+\usepackage{parskip}
+
+\usepackage{titlesec}
+\usepackage{titling}
+\usepackage{abstract}
 
 
-	\newcommand{\headerfont}{\sffamily\bfseries\boldmath}
+\newcommand{\headerfont}{\sffamily\bfseries\boldmath}
 
 
-	\titleformat*{\section}{\Large\headerfont}
-	\titleformat*{\subsection}{\large\headerfont}
-	\titleformat*{\subsubsection}{\normalsize\headerfont}
-	\titleformat*{\paragraph}{\normalsize\headerfont}
-	\titleformat*{\subparagraph}{\normalsize\headerfont}
+\titleformat*{\section}{\Large\headerfont}
+\titleformat*{\subsection}{\large\headerfont}
+\titleformat*{\subsubsection}{\normalsize\headerfont}
+\titleformat*{\paragraph}{\normalsize\headerfont}
+\titleformat*{\subparagraph}{\normalsize\headerfont}
 
 
-	\renewcommand\abstractnamefont{\headerfont}
+\renewcommand\abstractnamefont{\headerfont}
 
 
-	\pretitle{\begin{center}\LARGE\headerfont}
-	\posttitle{\end{center}}
-	\preauthor{\begin{center}\large\headerfont}
-	\postauthor{\end{center}}
-    
-    \title{My Title}
-	
-	\author{Shuvomoy Das Gupta}
-    
-    \begin{document}
-    \maketitle
-    
+\pretitle{\begin{center}\LARGE\headerfont}
+\posttitle{\end{center}}
+\preauthor{\begin{center}\large\headerfont}
+\postauthor{\end{center}}
+
+\title{My Title}
+
+\author{Shuvomoy Das Gupta}
+
+\begin{document}
+\maketitle
+   
     
 Some text and some \texttt{code}.
 
@@ -51,7 +52,7 @@ Some text and some \texttt{code}.
 \item item 3
 \end{itemize}
 
-\begin{tcblisting}{listing only, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt}
+\begin{tcblisting}{listing only, breakable, listing engine=minted, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt, bottomrule at break=-1pt, toprule at break=-1pt}
 x = 1
 # a comment
 y = x+1
@@ -59,13 +60,13 @@ y = x+1
 \end{tcblisting}
 
 
-\begin{equation*}
+\[
 \begin{aligned}
   a &= b + c \\
   & \quad + d + e \\
   f &= g - h
 \end{aligned}
-\end{equation*}
+\]
 
 
 
@@ -78,7 +79,7 @@ E = mc^2
 
 Where Equation \eqref{einstein} demonstrates the relationship between energy \texttt{e}, mass \texttt{m}, and the speed of light \texttt{c}.
 
-\begin{tcblisting}{listing only, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt}
+\begin{tcblisting}{listing only, breakable, listing engine=minted, minted language=julia, minted options={mathescape=true, breaklines}, colback=lightgray, colframe=black, boxrule=0pt, toprule=2pt, bottomrule=2pt, arc=0pt, outer arc=0pt, left=5pt, right=5pt, top=5pt, bottom=5pt, bottomrule at break=-1pt, toprule at break=-1pt}
 m = 1
 
 c = 3e8

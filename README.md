@@ -27,7 +27,7 @@ This is a `mod` for `Literate.jl`, which acts the same as the package except:
 You can install this package by typing the following in Julia repl: 
 
 ```
-https://github.com/Shuvomoy/LiterateModShuvo.jl.git
+]add https://github.com/Shuvomoy/LiterateModShuvo.jl
 ```
 
 ## Usage: conversion to markdown
@@ -84,7 +84,9 @@ Here, Equation @eq-Ax-eq-b represents a system of linear equations with non-nega
 
 ```
 
-Note that equation labels should always be in format `{#eq-EquationLabel}` (will become `\label{eq-EquationLabel}` in the LaTeX file) and they need to be referred to in format `@eq-EquationLabel` (will become `\eqref{eq-EquationLabel}` in the LaTeX file).
+Note that equation labels should always be in format `{#eq-EquationLabel}` (will become `\label{EquationLabel}` in the LaTeX file) and they need to be referred to in format `@eq-EquationLabel` (will become `\eqref{EquationLabel}` in the LaTeX file).
+
+If you include an explicit LaTeX display environment inside the `$$ ... $$` block and also provide a label, it must be a numbered (non-`*`) environment like `equation`/`align` (i.e. do not use `\[...\]` or `equation*`/`align*`).
 
 Also, `##` heading in markdown will become LaTeX section, `###` will become LaTeX subsection, `####` will become LaTeX subsubsection, and `#####` will become LaTeX paragraph.
 
